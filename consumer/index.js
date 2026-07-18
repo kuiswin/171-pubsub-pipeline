@@ -26,7 +26,6 @@ let currentSubscription = null;
 
 const isLocal = !!process.env.PUBSUB_EMULATOR_HOST;
 let throttlingDelay = 3; // スロットリング遅延（秒）の初期値
-let messagePromiseChain = Promise.resolve(); // メッセージの直列化処理用Promiseチェーン
 let trackingMessages = []; // 現在Pub/Subキューに滞留中または処理中のメッセージ: [{ id, text, status: 'PUBLISHED'|'PROCESSING', timestamp }]
 let isConsumerRunning = true; // コンシューマーの稼働状態フラグ
 
@@ -207,166 +206,156 @@ console.log(`[Consumer] Started. Mode: ${isLocal ? 'LOCAL (Simulation)' : 'PRODU
 console.log('[Consumer] Listening for events from Pub/Sub...');
 
 // メッセージハンドラ関数定義
-const messageHandler = (message) => {
-  messagePromiseChain = messagePromiseChain.then(async () => {
-    const startTime = Date.now();
-    let payload;
+const messageHandler = async (message) => {
+  const startTime = Date.now();
+  let payload;
+  try {
+    const rawData = message.data.toString();
     try {
-      const rawData = message.data.toString();
-      try {
-        payload = JSON.parse(rawData);
-      } catch (e) {
-        payload = {
-          id: 'legacy-' + message.id,
-          text: rawData,
-          timestamp: new Date(startTime).toISOString()
-        };
-      }
+      payload = JSON.parse(rawData);
+    } catch (e) {
+      payload = {
+        id: 'legacy-' + message.id,
+        text: rawData,
+        timestamp: new Date(startTime).toISOString()
+      };
+    }
 
-      // 一時停止状態であれば、即座に nack して物理キューに戻す（処理中ステータスにしない）
-      if (!isConsumerRunning) {
-        console.log(`[Consumer] Paused. Returning message ID: ${payload.id} to queue via nack().`);
-        
-        // メモリ上のステータスを PUBLISHED（滞留中）に戻す、または存在しなければ追加する
-        const msg = trackingMessages.find(m => String(m.id) === String(payload.id));
-        if (msg) {
-          msg.status = 'PUBLISHED';
-        } else {
-          trackingMessages.push({
-            id: payload.id,
-            text: payload.text,
-            status: 'PUBLISHED',
-            timestamp: payload.timestamp || new Date(startTime).toISOString()
-          });
-        }
-        
-        message.nack();
-        return;
-      }
+    // 一時停止状態であれば、即座に nack して物理キューに戻す（処理中ステータスにしない）
+    if (!isConsumerRunning) {
+      console.log(`[Consumer] Paused. Returning message ID: ${payload.id} to queue via nack().`);
       
-      // トラッキングリストのステータスを PROCESSING（処理中）に更新
+      // メモリ上のステータスを PUBLISHED（滞留中）に戻す、または存在しなければ追加する
       const msg = trackingMessages.find(m => String(m.id) === String(payload.id));
       if (msg) {
-        msg.status = 'PROCESSING';
+        msg.status = 'PUBLISHED';
       } else {
-        // 直接CLIからパブリッシュされた場合のフォールバック追加
         trackingMessages.push({
           id: payload.id,
           text: payload.text,
-          status: 'PROCESSING',
-          timestamp: new Date(startTime).toISOString()
+          status: 'PUBLISHED',
+          timestamp: payload.timestamp || new Date(startTime).toISOString()
         });
       }
-
-      console.log(`\n--- [Consumer] Received Event ID: ${payload.id} ---`);
-      console.log(`[Consumer] Input Text: "${payload.text}"`);
       
-      // スロットリング遅延の実行
-      if (throttlingDelay > 0) {
-        console.log(`[Consumer] Throttling: sleeping for ${throttlingDelay} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, throttlingDelay * 1000));
-      }
-      
-      const translateStartTime = Date.now();
-      let summary = '';
-      
-      if (isLocal) {
-        // ローカル環境動作時は、高速化のため無料の Google 翻訳 API を呼び出す
-        const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(payload.text);
-        const sourceLang = 'auto';
-        const targetLang = hasJapanese ? 'en' : 'ja';
-        console.log(`[Consumer] Translating text locally (${sourceLang} -> ${targetLang}) using Google Translate API...`);
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(payload.text)}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Google Translate API returned status ${response.status}`);
-        }
-        const json = await response.json();
-        summary = json[0].map(item => item[0]).join('');
-      } else {
-        // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 3.5 Flash) API を呼び出す
-        console.log(`[Consumer] Connecting to Vertex AI in us-central1 (Translation Mode)...`);
-        const { projectId, accessToken } = await getGCPToken();
-        const region = process.env.GCP_REGION || 'us-central1';
-        const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-        const apiUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
-        
-        const prompt = "Detect the language of the input text. If it is English, translate it to natural Japanese. If it is Japanese, translate it to natural English. Output ONLY the translated text, no introductory or concluding remarks.";
-        const requestBody = {
-          contents: [{
-            role: 'user',
-            parts: [{ text: `${prompt}\n\n${payload.text}` }]
-          }]
-        };
-        
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`Vertex AI API returned status ${response.status}: ${errText}`);
-        }
-        
-        const resData = await response.json();
-        summary = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'No translation returned';
-      }
-      
-      const endTime = Date.now();
-      const duration = endTime - translateStartTime;
-      console.log(`[Consumer] Translation: "${summary.trim()}"`);
-      console.log(`[Consumer] Pure Translation Duration: ${duration}ms`);
-      console.log(`[Consumer] Saving result to local store / GCS simulated path...`);
-      console.log(`-----------------------------------------------\n`);
-      
-      const publishedTime = payload.timestamp ? new Date(payload.timestamp).getTime() : startTime;
-      const waitDuration = (translateStartTime - publishedTime) / 1000;
-      const processDuration = (endTime - translateStartTime) / 1000;
-      const totalDuration = (endTime - publishedTime) / 1000;
-      
-      // メッセージ履歴に保存（重複排除）
-      const existingIndex = messageHistory.findIndex(m => m.id === payload.id);
-      const logData = {
+      message.nack();
+      return;
+    }
+    
+    // トラッキングリストのステータスを PROCESSING（処理中）に更新
+    const msg = trackingMessages.find(m => String(m.id) === String(payload.id));
+    if (msg) {
+      msg.status = 'PROCESSING';
+    } else {
+      // 直接CLIからパブリッシュされた場合のフォールバック追加
+      trackingMessages.push({
         id: payload.id,
         text: payload.text,
-        publishedAt: payload.timestamp || new Date(publishedTime).toISOString(),
-        startedAt: new Date(translateStartTime).toISOString(),
-        endedAt: new Date(endTime).toISOString(),
-        waitDuration: parseFloat(waitDuration.toFixed(2)),
-        processDuration: parseFloat(processDuration.toFixed(2)),
-        totalDuration: parseFloat(totalDuration.toFixed(2)),
-        summary: summary.trim()
+        status: 'PROCESSING',
+        timestamp: new Date(startTime).toISOString()
+      });
+    }
+
+    console.log(`\n--- [Consumer] Received Event ID: ${payload.id} ---`);
+    console.log(`[Consumer] Input Text: "${payload.text}"`);
+    
+    // スロットリング遅延の実行
+    if (throttlingDelay > 0) {
+      console.log(`[Consumer] Throttling: sleeping for ${throttlingDelay} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, throttlingDelay * 1000));
+    }
+    
+    const translateStartTime = Date.now();
+    let summary = '';
+    
+    if (isLocal) {
+      // ローカル環境動作時は、規約遵守のためモック翻訳処理を実行
+      const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(payload.text);
+      summary = hasJapanese 
+        ? `[Mock Translate to English] ${payload.text}` 
+        : `[モック翻訳 (日本語)] ${payload.text}`;
+      console.log(`[Consumer] (Local Mock Translation) Result: "${summary}"`);
+    } else {
+      // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 2.5 Flash) API を呼び出す
+      console.log(`[Consumer] Connecting to Vertex AI in us-central1 (Translation Mode)...`);
+      const { projectId, accessToken } = await getGCPToken();
+      const region = process.env.GCP_REGION || 'us-central1';
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+      const apiUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
+      
+      const prompt = "Detect the language of the input text. If it is English, translate it to natural Japanese. If it is Japanese, translate it to natural English. Output ONLY the translated text, no introductory or concluding remarks.";
+      const requestBody = {
+        contents: [{
+          role: 'user',
+          parts: [{ text: `${prompt}\n\n${payload.text}` }]
+        }]
       };
-      if (existingIndex !== -1) {
-        messageHistory[existingIndex] = logData;
-      } else {
-        messageHistory.unshift(logData);
-        if (messageHistory.length > 30) messageHistory.pop();
-        processedCount++;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Vertex AI API returned status ${response.status}: ${errText}`);
       }
       
-      // 処理が完了したので ack し、トラッキングリストから削除
-      trackingMessages = trackingMessages.filter(m => String(m.id) !== String(payload.id));
-      message.ack(); // メッセージの処理成功をキューに通知
-    } catch (error) {
-      console.error('[Consumer] Error processing message:', error);
-      if (payload && payload.id) {
-        // エラー時はステータスを再び PUBLISHED（滞留中）に戻す
-        const msg = trackingMessages.find(m => String(m.id) === String(payload.id));
-        if (msg) {
-          msg.status = 'PUBLISHED';
-        }
-      }
-      message.nack(); // 失敗したため再配送を要求
+      const resData = await response.json();
+      summary = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'No translation returned';
     }
-  }).catch(err => {
-    console.error('[Consumer] Promise chain exception:', err);
-  });
+    
+    const endTime = Date.now();
+    const duration = endTime - translateStartTime;
+    console.log(`[Consumer] Translation: "${summary.trim()}"`);
+    console.log(`[Consumer] Pure Translation Duration: ${duration}ms`);
+    console.log(`[Consumer] Saving result to local store / GCS simulated path...`);
+    console.log(`-----------------------------------------------\n`);
+    
+    const publishedTime = payload.timestamp ? new Date(payload.timestamp).getTime() : startTime;
+    const waitDuration = (translateStartTime - publishedTime) / 1000;
+    const processDuration = (endTime - translateStartTime) / 1000;
+    const totalDuration = (endTime - publishedTime) / 1000;
+    
+    // メッセージ履歴に保存（重複排除）
+    const existingIndex = messageHistory.findIndex(m => m.id === payload.id);
+    const logData = {
+      id: payload.id,
+      text: payload.text,
+      publishedAt: payload.timestamp || new Date(publishedTime).toISOString(),
+      startedAt: new Date(translateStartTime).toISOString(),
+      endedAt: new Date(endTime).toISOString(),
+      waitDuration: parseFloat(waitDuration.toFixed(2)),
+      processDuration: parseFloat(processDuration.toFixed(2)),
+      totalDuration: parseFloat(totalDuration.toFixed(2)),
+      summary: summary.trim()
+    };
+    if (existingIndex !== -1) {
+      messageHistory[existingIndex] = logData;
+    } else {
+      messageHistory.unshift(logData);
+      if (messageHistory.length > 30) messageHistory.pop();
+      processedCount++;
+    }
+    
+    // 処理が完了したので ack し、トラッキングリストから削除
+    trackingMessages = trackingMessages.filter(m => String(m.id) !== String(payload.id));
+    message.ack(); // メッセージの処理成功をキューに通知
+  } catch (error) {
+    console.error('[Consumer] Error processing message:', error);
+    if (payload && payload.id) {
+      // エラー時はステータスを再び PUBLISHED（滞留中）に戻す
+      const msg = trackingMessages.find(m => String(m.id) === String(payload.id));
+      if (msg) {
+        msg.status = 'PUBLISHED';
+      }
+    }
+    message.nack(); // 失敗したため再配送を要求
+  }
 };
 
 function startConsumer() {
