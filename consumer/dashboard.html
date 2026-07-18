@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini AI パイプライン ダッシュボード</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #f1f5f9; /* 明るく柔らかいスレートグレー */
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(148, 163, 184, 0.16);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6; /* 鮮やかな青 */
+            --accent-green: #10b981; /* 鮮やかな緑 */
+            --accent-purple: #8b5cf6; /* 鮮やかな紫 */
+            --accent-pink: #ec4899; /* 鮮やかなピンク */
+            --glass-bg: rgba(255, 255, 255, 0.7);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 2.5rem 1.5rem;
+            min-height: 100vh;
+            line-height: 1.5;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.04) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.04) 0px, transparent 50%);
+        }
+
+        .container {
+            max-width: 1250px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .mode-badge {
+            padding: 0.45rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(37, 99, 235, 0.08);
+            color: var(--accent-blue);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+            backdrop-filter: blur(4px);
+        }
+
+        /* 統計グリッド */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 25px -5px rgba(148, 163, 184, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: transparent;
+        }
+
+        .stat-card.status-active::before {
+            background: var(--accent-green);
+        }
+
+        .stat-card.status-count::before {
+            background: var(--accent-purple);
+        }
+
+        .stat-card.status-sub::before {
+            background: var(--accent-blue);
+        }
+
+        .stat-card.status-delay::before {
+            background: var(--accent-pink);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .stat-value.active {
+            color: var(--accent-green);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stat-value.active::before {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        .stat-value.count {
+            color: var(--accent-purple);
+        }
+
+        /* シミュレーターエリア */
+        .simulator-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 15px 35px -10px rgba(148, 163, 184, 0.15);
+            margin-bottom: 2.5rem;
+            backdrop-filter: blur(16px);
+        }
+
+        .sim-controls {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            padding-bottom: 1.5rem;
+        }
+
+        .sim-pipelines {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .sim-pipelines > div {
+            min-width: 0;
+        }
+
+        @media (max-width: 1024px) {
+            .sim-controls {
+                grid-template-columns: 1fr;
+            }
+            .sim-pipelines {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            border: none;
+            padding: 0.85rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* 生成された言葉カード */
+        .generated-word-box {
+            margin-top: 1rem;
+            min-height: 250px;
+            height: 250px;
+            overflow-y: auto;
+            border: 2px dashed rgba(148, 163, 184, 0.25);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: stretch;
+            justify-content: flex-start;
+            padding: 0.75rem;
+            position: relative;
+            background: rgba(248, 250, 252, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .generated-word-box.empty {
+            justify-content: center;
+            align-items: center;
+        }
+
+        .generated-card {
+            background: white;
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.08);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .generated-card:hover {
+            transform: scale(1.03) translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.15);
+            border-color: var(--accent-blue);
+        }
+
+        .generated-card::after {
+            content: '👉 クリックしてキューに流す';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            font-size: 0.75rem;
+            text-align: center;
+            padding: 0.35rem 0;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(100%);
+            transition: all 0.2s ease;
+        }
+
+        .generated-card:hover::after {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .card-preview-text {
+            font-size: 0.9rem;
+            font-style: italic;
+            color: #334155;
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+
+        /* カスタム入力ボックス */
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .text-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .text-input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-send {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 0 1.25rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .btn-send:hover {
+            background: #1d4ed8;
+        }
+
+        /* パイプラインキューエリア */
+        .pipeline-container {
+            border: 1px solid var(--border-color);
+            background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.6) 0%, rgba(241, 245, 249, 0.5) 100%);
+            border-radius: 16px;
+            padding: 1.25rem;
+            min-height: 250px;
+            height: 250px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* キュー内のローディングロード */
+        .pipeline-pipe {
+            width: 100%;
+            height: 12px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .pipeline-pipe::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 50%;
+            background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+            animation: flow 2s infinite linear;
+        }
+
+        .pipeline-lane {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden; /* 横スクロールバー防止 */
+            z-index: 10;
+            padding: 0.1rem;
+            box-sizing: border-box;
+        }
+
+        .pipeline-msg-card {
+            background: white;
+            border: 1px solid rgba(124, 92, 246, 0.2);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            box-sizing: border-box; /* 横幅はみ出し防止 */
+            box-shadow: 0 4px 12px rgba(124, 92, 246, 0.08);
+            position: relative;
+            animation: slideInUp 0.3s ease;
+            border-left: 4px solid var(--accent-purple);
+        }
+
+        .pipeline-msg-card .loading-status {
+            font-size: 0.75rem;
+            color: var(--accent-purple);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(124, 92, 246, 0.2);
+            border-top: 2px solid var(--accent-purple);
+            border-radius: 50%;
+            animation: spin 1s infinite linear;
+            display: inline-block;
+        }
+
+        /* 履歴ログエリア */
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: var(--text-main);
+        }
+
+        .section-title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 20px;
+            background: var(--accent-blue);
+            border-radius: 2px;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .history-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 30px -10px rgba(148, 163, 184, 0.15);
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+            animation: cardReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .history-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(148, 163, 184, 0.3);
+            box-shadow: 0 12px 35px -8px rgba(148, 163, 184, 0.25);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+            padding-bottom: 0.5rem;
+        }
+
+        .event-id {
+            font-family: monospace;
+            color: var(--accent-blue);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .timestamp {
+            color: var(--text-muted);
+        }
+
+        .text-group {
+            margin-bottom: 1rem;
+        }
+
+        .group-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+            font-weight: 700;
+        }
+
+        .group-content {
+            font-size: 0.9rem;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .summary-group {
+            background: rgba(139, 92, 246, 0.05);
+            border-left: 3px solid var(--accent-purple);
+            padding: 0.85rem 1.1rem;
+            border-radius: 0 10px 10px 0;
+            position: relative;
+        }
+
+        .summary-group::before {
+            content: 'AI翻訳';
+            position: absolute;
+            top: -7px;
+            right: 12px;
+            background: var(--accent-purple);
+            color: white;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        .summary-group .group-content {
+            color: #4c1d95;
+            font-weight: 500;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            font-size: 0.95rem;
+        }
+
+        .empty-queue {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: center;
+            font-style: italic;
+        }
+
+        /* アニメーション */
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes cardReveal {
+            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes flow {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Gemini AI パイプライン ダッシュボード</h1>
+            <div class="mode-badge" id="mode-badge">接続確認中...</div>
+        </header>
+
+        <!-- インタラクティブシミュレータ -->
+        <div class="simulator-section">
+            <!-- 上部: コントロール＆ステータスエリア -->
+            <div class="sim-controls">
+                <!-- 操作1: 言葉生成 -->
+                <div>
+                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; font-family: 'Outfit', sans-serif;">
+                        <span style="background: var(--accent-blue); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem; font-family:'Outfit'">Step 1</span>
+                        メッセージの送信 (プロデューサー)
+                    </h4>
+                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                        <button class="btn-primary" style="margin: 0; padding: 0.75rem 1.25rem; font-size: 0.85rem; flex: 1.2;" onclick="generateRandomText()">テンプレートからランダム生成</button>
+                        <div class="input-group" style="margin: 0; flex: 2;">
+                            <input type="text" id="custom-text" class="text-input" style="padding: 0.7rem 0.85rem;" placeholder="自分で言葉を入力して送信することも可能...">
+                            <button class="btn-send" onclick="publishCustomText()">送信</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- システムステータス -->
+                <div>
+                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; font-family: 'Outfit', sans-serif;">
+                        <span style="background: var(--text-muted); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem; font-family:'Outfit'">System</span>
+                        システム接続ステータス
+                    </h4>
+                    <div class="queue-status-banner" style="background: rgba(148, 163, 184, 0.05); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 0.65rem 1rem; display: flex; align-items: center; justify-content: space-between; height: 46px; font-size: 0.82rem;">
+                        <span style="font-weight: 600; color: var(--text-main);"><span id="mode-badge-indicator" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-green); margin-right:0.4rem; animation:pulse 2s infinite;"></span>エミュレータ接続情報:</span>
+                        <span id="sub-val-status" style="font-family: monospace; font-size: 0.85rem; font-weight: 700; color: var(--text-main);">local-project (verify-sub)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下部: 3カラムパイプライン -->
+            <div class="sim-pipelines">
+                <!-- カラム1: 送信待ちバッファ (UIキュー) -->
+                <div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.4rem;">
+                        <span style="background: var(--accent-blue); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem;">Step 1 (UI)</span>
+                        <span>送信待ちバッファ (ブラウザ内待機)</span>
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.6rem; line-height: 1.3;">
+                        ※ランダム生成されたテキストが送信待ちとして一時的にプールされます。
+                    </div>
+                    <div id="word-box-container" class="generated-word-box empty" style="margin-top: 0;">
+                        <div class="empty-queue">ここに生成されたカードが表示されます。<br/>クリックするとキューへ送信されます。</div>
+                    </div>
+                </div>
+
+                <!-- カラム2: Pub/Sub 物理キュー -->
+                <div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem; font-family: 'Outfit', sans-serif; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display:flex; align-items:center; gap:0.4rem;">
+                            <span style="background: var(--accent-pink); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem;">Step 2 (Queue)</span>
+                            <span>Cloud Pub/Sub 物理キュー (滞留中)</span>
+                        </div>
+                        <span id="backlog-count" style="font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 800; color: var(--accent-pink); background: rgba(236,72,153,0.1); padding: 0.1rem 0.5rem; border-radius: 6px;">0 件</span>
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.6rem; line-height: 1.3;">
+                        ※手動送信やカウントダウン終了したメッセージが並列で到達します。
+                    </div>
+                    <div class="pipeline-container" style="padding: 0.75rem;">
+                        <div class="pipeline-lane" id="backlog-lane">
+                            <div class="empty-queue">現在キューに滞留しているメッセージはありません。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- カラム3: 翻訳ワーカー -->
+                <div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.4rem;">
+                        <span style="background: var(--accent-purple); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem;">Step 3 (Worker)</span>
+                        <span>翻訳ワーカー (コンシューマー処理中)</span>
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.6rem; line-height: 1.3;">
+                        ※Pub/Subからメッセージを引き抜き、Gemini AIで翻訳している状態です。
+                    </div>
+                    <div class="pipeline-container" style="padding: 0.75rem;">
+                        <div class="pipeline-lane" id="processing-lane">
+                            <div class="empty-queue">現在処理中のメッセージはありません。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- パイプライン状況の基本スタッツ -->
+        <div class="stats-grid">
+            <div class="stat-card status-active" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div class="stat-label">パイプラインの稼働状況</div>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; width: 100%;">
+                    <div class="stat-value active" id="status-val" style="font-size: 1.25rem;">アクティブ</div>
+                    <button id="toggle-consumer-btn" class="btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.7rem; margin: 0; background: var(--accent-purple); box-shadow: none;" onclick="toggleConsumer()">一時停止</button>
+                </div>
+            </div>
+            <div class="stat-card status-count">
+                <div class="stat-label">処理済みメッセージ数</div>
+                <div class="stat-value count" id="count-val">0 件</div>
+            </div>
+            <div class="stat-card status-sub">
+                <div class="stat-label">サブスクリプション購読キュー</div>
+                <div class="stat-value" id="sub-val">-</div>
+            </div>
+            <div class="stat-card status-delay" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div class="stat-label">追加の処理遅延【スロットリング】</div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem;">
+                    <input type="range" id="delay-slider" min="0" max="10" step="1" value="3" style="flex: 1; cursor: pointer; accent-color: var(--accent-pink);" oninput="updateDelayValue(this.value)" onchange="sendDelaySetting(this.value)">
+                    <span id="delay-val" style="font-weight: 700; color: var(--accent-pink); font-size: 1.4rem; font-family: 'Outfit', sans-serif; min-width: 2.5rem; text-align: right;">3秒</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">
+            <span style="background: var(--accent-green); color:white; border-radius:4px; padding: 0.1rem 0.5rem; font-size:0.75rem; font-family:'Outfit'">Step 4</span>
+            翻訳履歴 (処理完了ログ)
+        </h2>
+        <div class="history-list" id="history-container">
+            <div class="no-data">処理されたメッセージはまだありません。上のシミュレーターでメッセージを生成してみてください。</div>
+        </div>
+    </div>
+
+    <script>
+        // サンプルの英文テキスト集
+        const sampleTexts = [
+            "Google Cloud is a suite of cloud computing services that runs on the same infrastructure that Google uses internally.",
+            "Cloud Run is a managed compute platform that enables you to run containers that are deployable on Google Cloud.",
+            "Vertex AI is a machine learning platform that lets you train and deploy ML models and AI applications.",
+            "Cloud Pub/Sub is an asynchronous messaging service that decouples services that produce events from services that process events.",
+            "Gemini 3.5 Flash is Google's lightweight, fast, and cost-efficient multimodal AI model designed for high-frequency tasks.",
+            "BigQuery is a completely serverless and cost-effective enterprise data warehouse that works across clouds.",
+            "Google Cloud Spanner is a fully managed, mission-critical relational database service that provides transactional consistency at global scale.",
+            "Cloud Storage is a global, secure, and scalable object store for unstructured data such as images, videos, and backups.",
+            "Google Kubernetes Engine is a secured and managed Kubernetes service for deploying, managing, and scaling containerized applications.",
+            "Identity and Access Management lets administrators authorize who can take action on specific resources in Google Cloud."
+        ];
+
+        let renderedMessageIds = new Set();
+        let nextEventId = 1001;
+        
+        let pendingCards = []; // 送信待ちカードキュー: [{ id, text, secondsRemaining, intervalId, timeoutId }]
+        let activeCountdownId = null; // 現在カウントダウン実行中のカードID
+
+        // テキストをランダム生成してカードにする
+        function generateRandomText() {
+            const index = Math.floor(Math.random() * sampleTexts.length);
+            const text = sampleTexts[index];
+            const id = nextEventId++;
+            
+            const container = document.getElementById('word-box-container');
+            
+            // 空のプレースホルダーを削除
+            const emptyPlaceholder = container.querySelector('.empty-queue');
+            if (emptyPlaceholder) {
+                container.innerHTML = '';
+                container.classList.remove('empty');
+            }
+            
+            // カード要素の作成
+            const card = document.createElement('div');
+            card.className = 'generated-card';
+            card.id = `card-${id}`;
+            card.style.cursor = 'pointer';
+            
+            // クリック時の即時送信
+            card.onclick = () => {
+                sendCardToQueue(id, text);
+            };
+            
+            card.innerHTML = `
+                <div style="font-size:0.75rem; color:var(--accent-blue); font-weight:700; margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                    <span>イベントID: ${id}</span>
+                    <span class="countdown-badge-status" style="color:var(--text-muted); font-weight:bold; font-size:0.7rem; background:rgba(148,163,184,0.1); padding:0.1rem 0.4rem; border-radius:4px;">⏳ 送信順番待ち...</span>
+                </div>
+                <div class="card-preview-text">"${text}"</div>
+                <div style="font-size:0.7rem; color:var(--accent-blue); font-weight:700; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;">
+                    <span>👆 今すぐクリックして送信</span>
+                    <span style="color:var(--text-muted); font-size:0.65rem;">クリックで即時送信</span>
+                </div>
+                <div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden; position: relative;">
+                    <div class="progress-bar-inner" style="height: 100%; width: 100%; background: #cbd5e1; transition: width 1s linear;"></div>
+                </div>
+            `;
+            
+            container.appendChild(card);
+            
+            // スクロールを一番下に移動
+            container.scrollTop = container.scrollHeight;
+            
+            // 待機中リストに追加
+            pendingCards.push({
+                id: id,
+                text: text,
+                secondsRemaining: 1,
+                intervalId: null,
+                timeoutId: null
+            });
+            
+            // 待機キューの更新処理
+            processPendingQueue();
+        }
+
+        // 待機キューの カウントダウン開始・処理
+        function processPendingQueue() {
+            if (pendingCards.length === 0) {
+                activeCountdownId = null;
+                return;
+            }
+            
+            // すでに何かカウントダウン中であれば処理しない
+            if (activeCountdownId !== null) {
+                if (pendingCards.some(c => c.id === activeCountdownId)) {
+                    return;
+                }
+            }
+            
+            // 先頭のカードをアクティブにしてカウントダウンを開始
+            const activeCard = pendingCards[0];
+            activeCountdownId = activeCard.id;
+            
+            const cardEl = document.getElementById(`card-${activeCard.id}`);
+            if (!cardEl) return;
+            
+            // UIをアクティブカウントダウン用に更新
+            const statusBadge = cardEl.querySelector('.countdown-badge-status');
+            if (statusBadge) {
+                statusBadge.style.color = 'var(--accent-pink)';
+                statusBadge.style.background = 'rgba(236,72,153,0.1)';
+                statusBadge.innerHTML = `⏱️ <span class="countdown-sec">1</span>秒後に自動送信`;
+            }
+            
+            const progressBar = cardEl.querySelector('.progress-bar-inner');
+            if (progressBar) {
+                progressBar.style.background = 'linear-gradient(90deg, var(--accent-blue), var(--accent-pink))';
+            }
+            
+            const countdownSecSpan = cardEl.querySelector('.countdown-sec');
+            
+            activeCard.intervalId = setInterval(() => {
+                activeCard.secondsRemaining--;
+                if (activeCard.secondsRemaining > 0) {
+                    if (countdownSecSpan) countdownSecSpan.textContent = activeCard.secondsRemaining;
+                    if (progressBar) progressBar.style.width = `${(activeCard.secondsRemaining / 1) * 100}%`;
+                } else {
+                    clearInterval(activeCard.intervalId);
+                }
+            }, 1000);
+            
+            activeCard.timeoutId = setTimeout(async () => {
+                await sendCardToQueue(activeCard.id, activeCard.text);
+            }, 1000);
+        }
+
+        // カスタムテキストを送信する
+        async function publishCustomText() {
+            const input = document.getElementById('custom-text');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            input.value = "";
+            const customId = nextEventId++;
+            await publishText(text, customId);
+        }
+
+        // カードをキューに送る
+        async function sendCardToQueue(id, text) {
+            // タイマー解除とpendingCardsからの削除
+            const cardIndex = pendingCards.findIndex(c => c.id === id);
+            if (cardIndex !== -1) {
+                const pCard = pendingCards[cardIndex];
+                if (pCard.intervalId) clearInterval(pCard.intervalId);
+                if (pCard.timeoutId) clearTimeout(pCard.timeoutId);
+                pendingCards.splice(cardIndex, 1);
+            }
+            
+            if (activeCountdownId === id) {
+                activeCountdownId = null;
+            }
+            
+            const card = document.getElementById(`card-${id}`);
+            if (card) {
+                card.remove();
+            }
+            
+            const container = document.getElementById('word-box-container');
+            if (container.children.length === 0) {
+                container.classList.add('empty');
+                container.innerHTML = `<div class="empty-queue">ここに生成されたカードが表示されます。<br/>クリックするとキューへ送信されます。</div>`;
+            }
+            
+            await publishText(text, id);
+            
+            // 次の待機カードの処理を開始
+            processPendingQueue();
+        }
+
+        // 共通：テキストの送信処理
+        async function publishText(text, id) {
+            try {
+                const res = await fetch('/api/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, text })
+                });
+                const data = await res.json();
+                
+                if (!data.success) {
+                    alert("送信に失敗しました: " + data.error);
+                }
+            } catch (err) {
+                console.error("API送信エラー:", err);
+            }
+        }
+
+        // キューエリアの描画 (物理キューと処理中ワーカーに振り分け)
+        function renderQueueLane(queueList) {
+            const backlogLane = document.getElementById('backlog-lane');
+            const processingLane = document.getElementById('processing-lane');
+            const backlogCountEl = document.getElementById('backlog-count');
+
+            if (!queueList || queueList.length === 0) {
+                backlogLane.innerHTML = `<div class="empty-queue">現在キューに滞留しているメッセージはありません。</div>`;
+                processingLane.innerHTML = `<div class="empty-queue">現在処理中のメッセージはありません。</div>`;
+                backlogCountEl.textContent = '0 件';
+                return;
+            }
+
+            const backlogList = queueList.filter(m => m.status === 'PUBLISHED');
+            const processingList = queueList.filter(m => m.status === 'PROCESSING');
+
+            backlogCountEl.textContent = backlogList.length + ' 件';
+
+            // 1. 物理キュー滞留中の描画
+            if (backlogList.length === 0) {
+                backlogLane.innerHTML = `<div class="empty-queue">現在キューに滞留しているメッセージはありません。</div>`;
+            } else {
+                backlogLane.innerHTML = backlogList.map(msg => `
+                    <div class="pipeline-msg-card" data-id="${msg.id}" style="border: 1px solid rgba(148, 163, 184, 0.2); background: rgba(248, 250, 252, 0.8); opacity: 0.85; transition: all 0.3s ease; display: block; margin: 0;">
+                        <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700; margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                            <span>イベントID: ${msg.id}</span>
+                            <span style="font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:4px; font-weight:bold; display: inline-flex; align-items: center; color: var(--accent-pink); background: rgba(236, 72, 153, 0.1);">
+                                ⏸️ Pub/Sub 滞留中
+                            </span>
+                        </div>
+                        <div style="font-size:0.8rem; color:#334155; font-weight:500; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">
+                            "${msg.text}"
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // 2. 翻訳ワーカー（処理中）の描画
+            if (processingList.length === 0) {
+                processingLane.innerHTML = `<div class="empty-queue">現在処理中のメッセージはありません。</div>`;
+            } else {
+                processingLane.innerHTML = processingList.map(msg => `
+                    <div class="pipeline-msg-card" data-id="${msg.id}" style="border: 1px solid rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.02); transition: all 0.3s ease; display: block; margin: 0;">
+                        <div style="font-size:0.75rem; color:var(--accent-purple); font-weight:700; margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                            <span>イベントID: ${msg.id}</span>
+                            <span style="font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:4px; font-weight:bold; display: inline-flex; align-items: center; color: var(--accent-purple); background: rgba(139, 92, 246, 0.1);">
+                                <span class="spinner" style="border-left-color: var(--accent-purple); margin-right: 0.25rem;"></span>⚙️ 翻訳中...
+                            </span>
+                        </div>
+                        <div style="font-size:0.8rem; color:#334155; font-weight:500; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">
+                            "${msg.text}"
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        let hasInitializedSlider = false;
+
+        // ポーリング処理
+        async function updateDashboard() {
+            try {
+                // ステータスの更新
+                const statusRes = await fetch('/api/status');
+                const statusData = await statusRes.json();
+                document.getElementById('mode-badge').textContent = statusData.mode === 'LOCAL (Simulation)' ? 'ローカル検証モード (ローカルAI)' : '本番運用モード (Google Cloud)';
+                document.getElementById('count-val').textContent = statusData.processedCount + ' 件';
+                document.getElementById('sub-val').textContent = statusData.subscription;
+                
+                // コンシューマー状態の表示とトグルボタンの同期
+                const statusVal = document.getElementById('status-val');
+                const toggleBtn = document.getElementById('toggle-consumer-btn');
+                if (statusData.status === 'ACTIVE') {
+                    statusVal.textContent = '稼働中';
+                    statusVal.className = 'stat-value active';
+                    if (toggleBtn) {
+                        toggleBtn.textContent = '一時停止';
+                        toggleBtn.style.background = 'var(--accent-purple)';
+                    }
+                } else {
+                    statusVal.textContent = '停止中';
+                    statusVal.className = 'stat-value count';
+                    if (toggleBtn) {
+                        toggleBtn.textContent = '再開';
+                        toggleBtn.style.background = 'var(--accent-pink)';
+                    }
+                }
+                
+                // スライダー初期設定
+                if (!hasInitializedSlider && statusData.throttlingDelay !== undefined) {
+                    const slider = document.getElementById('delay-slider');
+                    if (slider) {
+                        slider.value = statusData.throttlingDelay;
+                        updateDelayValue(statusData.throttlingDelay);
+                    }
+                    hasInitializedSlider = true;
+                }
+                
+                // 履歴の更新
+                const historyRes = await fetch('/api/history');
+                const historyData = await historyRes.json();
+
+                // 処理中キュー（未ack）の更新
+                const queueRes = await fetch('/api/queue');
+                const queueData = await queueRes.json();
+                renderQueueLane(queueData);
+                
+                // システム内の最大IDを検出して nextEventId を同期（重複防止）
+                let maxIdInSystem = 1000;
+                historyData.forEach(msg => {
+                    const idNum = Number(msg.id);
+                    if (!isNaN(idNum) && idNum > maxIdInSystem) {
+                        maxIdInSystem = idNum;
+                    }
+                });
+                queueData.forEach(msg => {
+                    const idNum = Number(msg.id);
+                    if (!isNaN(idNum) && idNum > maxIdInSystem) {
+                        maxIdInSystem = idNum;
+                    }
+                });
+                pendingCards.forEach(c => {
+                    const idNum = Number(c.id);
+                    if (!isNaN(idNum) && idNum > maxIdInSystem) {
+                        maxIdInSystem = idNum;
+                    }
+                });
+                if (maxIdInSystem >= nextEventId) {
+                    nextEventId = maxIdInSystem + 1;
+                }
+                
+                const container = document.getElementById('history-container');
+                if (historyData.length === 0) {
+                    container.innerHTML = '<div class="no-data">処理されたメッセージはまだありません。上のシミュレーターでメッセージを生成してみてください。</div>';
+                    renderedMessageIds.clear();
+                    return;
+                }
+
+                const noDataEl = container.querySelector('.no-data');
+                if (noDataEl || renderedMessageIds.size === 0) {
+                    container.innerHTML = '';
+                    renderedMessageIds.clear();
+                }
+                
+                // 履歴データを元に、ログに追加
+                for (let i = historyData.length - 1; i >= 0; i--) {
+                    const msg = historyData[i];
+                    const msgIdStr = String(msg.id);
+
+                    if (!renderedMessageIds.has(msgIdStr)) {
+                        const card = document.createElement('div');
+                        card.className = 'history-card';
+                        card.setAttribute('data-id', msgIdStr);
+                        
+                        const publishedTime = msg.publishedAt || msg.timestamp;
+                        const pubStr = publishedTime ? new Date(publishedTime).toLocaleTimeString() : '不明';
+                        
+                        // タイムラインの秒数表示
+                        const waitVal = typeof msg.waitDuration === 'number' ? msg.waitDuration.toFixed(2) + '秒' : '0.00秒';
+                        const procVal = typeof msg.processDuration === 'number' ? msg.processDuration.toFixed(2) + '秒' : '0.00秒';
+                        const totalVal = typeof msg.totalDuration === 'number' ? msg.totalDuration.toFixed(2) + '秒' : '0.00秒';
+                        
+                        card.innerHTML = `
+                            <div class="card-header">
+                                <span class="event-id">イベントID: ${msg.id}</span>
+                                <span class="timestamp">データ投入: ${publishedTime ? new Date(publishedTime).toLocaleString() : '不明'}</span>
+                            </div>
+                            <div class="text-group">
+                                <div class="group-label">元のテキスト (データ投入)</div>
+                                <div class="group-content">"${msg.text}"</div>
+                            </div>
+                            <div class="summary-group">
+                                <div class="group-label">翻訳結果 (日本語)</div>
+                                <div class="group-content">${msg.summary}</div>
+                            </div>
+                            <div class="timing-info" style="margin-top: 1.25rem; font-size: 0.8rem; border-top: 1px dashed rgba(148, 163, 184, 0.15); padding-top: 0.85rem;">
+                                <div style="background: rgba(148, 163, 184, 0.04); padding: 0.55rem 0.85rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.08);">
+                                    <span style="font-weight: 500; color: var(--text-muted);">📥 投入時刻: <strong style="color: var(--text-main); font-family: monospace;">${pubStr}</strong></span>
+                                    <span style="color: var(--accent-blue); font-weight: 600;">⏳ 滞留: <strong>${waitVal}</strong></span>
+                                    <span style="color: rgba(148,163,184,0.4);">➔</span>
+                                    <span style="color: var(--accent-purple); font-weight: 600;">⚙️ 翻訳: <strong>${procVal}</strong></span>
+                                    <span style="color: rgba(148,163,184,0.4);">➔</span>
+                                    <span style="color: var(--accent-green); font-weight: 700;">🎉 完了: <strong>${totalVal}</strong></span>
+                                </div>
+                            </div>
+                        `;
+                        container.insertBefore(card, container.firstChild);
+                        renderedMessageIds.add(msgIdStr);
+                    }
+                }
+
+                // 30件超のログを削除
+                const cards = container.querySelectorAll('.history-card');
+                if (cards.length > 30) {
+                    for (let i = 30; i < cards.length; i++) {
+                        const cardIdStr = String(cards[i].getAttribute('data-id'));
+                        renderedMessageIds.delete(cardIdStr);
+                        cards[i].remove();
+                    }
+                }
+            } catch (err) {
+                console.error('データ取得エラー:', err);
+            }
+        }
+
+        // スライダーの値更新
+        function updateDelayValue(val) {
+            document.getElementById('delay-val').textContent = val + '秒';
+        }
+
+        // スライダー設定をサーバーに送信
+        async function sendDelaySetting(val) {
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ delay: Number(val) })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert('遅延設定の保存に失敗しました');
+                }
+            } catch (err) {
+                console.error('遅延設定送信エラー:', err);
+            }
+        }
+
+        // コンシューマーの起動/一時停止切り替え
+        async function toggleConsumer() {
+            const statusVal = document.getElementById('status-val');
+            const isRunning = statusVal.textContent === '稼働中';
+            const endpoint = isRunning ? '/api/consumer/pause' : '/api/consumer/resume';
+            
+            try {
+                const res = await fetch(endpoint, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    updateDashboard();
+                } else {
+                    alert('操作に失敗しました: ' + data.error);
+                }
+            } catch (err) {
+                console.error('コンシューマー制御エラー:', err);
+            }
+        }
+        
+        // 初回ロードと2秒ごとのポーリング
+        updateDashboard();
+        setInterval(updateDashboard, 2000);
+    </script>
+</body>
+</html>

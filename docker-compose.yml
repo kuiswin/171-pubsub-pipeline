@@ -1,0 +1,76 @@
+services:
+  # 1. Google Cloud Pub/Sub Emulator
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: pubsub-emulator
+    ports:
+      - "8085:8085"
+    entrypoint: [
+      "gcloud", "beta", "emulators", "pubsub", "start", 
+      "--host-port=0.0.0.0:8085"
+    ]
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "sleep 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # 2. Web Dashboard for real-time visualization and testing
+  pubsub-dashboard:
+    image: dipjyotimetia/pubsub-emulator:latest
+    container_name: pubsub-dashboard
+    ports:
+      - "8080:8080" # Access via http://localhost:8080
+    environment:
+      - PUBSUB_PROJECT=local-project
+      - PUBSUB_PORT=8085
+      - DASHBOARD_PORT=8080
+      - PUBSUB_TOPIC=verify-topic
+      - PUBSUB_SUBSCRIPTION=verify-sub
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+
+  # 3. Initialization script to create topics and subscriptions
+  pubsub-init:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: pubsub-init
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - CLOUDSDK_AUTH_DISABLE_CREDENTIALS=1
+      - CLOUDSDK_CORE_DISABLE_PROMPTS=1
+      - CLOUDSDK_API_ENDPOINT_OVERRIDES_PUBSUB=http://pubsub-emulator:8085/
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for Pub/Sub Emulator to start...' &&
+        gcloud config set project local-project &&
+        for i in {1..30}; do
+          if gcloud pubsub topics create verify-topic 2>/dev/null; then
+            echo 'Topic verify-topic created successfully!'
+            break
+          fi
+          sleep 1
+        done &&
+        gcloud pubsub subscriptions create verify-sub --topic=verify-topic &&
+        echo 'Pub/Sub Setup Completed successfully!'"
+
+  # 4. Message Consumer (subscribes to events, processes via Gemini 3.5 Flash)
+  consumer:
+    build: ./consumer
+    container_name: pubsub-consumer
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
+    ports:
+      - "8086:8080"
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - LLM_PROVIDER=gemini
+      - GEMINI_MODEL=gemini-3.5-flash
+      - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-3.5-flash:generateContent
+    restart: always

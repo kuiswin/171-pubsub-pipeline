@@ -1,0 +1,10 @@
+{
+  "name": "pubsub-consumer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/pubsub": "^4.4.0",
+    "express": "^4.19.2",
+    "google-auth-library": "^9.0.0"
+  }
+}
