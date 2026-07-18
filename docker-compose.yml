@@ -48,16 +48,12 @@ services:
     entrypoint: >
       bash -c "
         echo 'Waiting for Pub/Sub Emulator to start...' &&
+        while ! nc -z pubsub-emulator 8085; do sleep 0.5; done &&
         gcloud config set project local-project &&
-        for i in {1..30}; do
-          if gcloud pubsub topics create verify-topic 2>/dev/null; then
-            echo 'Topic verify-topic created successfully!'
-            break
-          fi
-          sleep 1
-        done &&
-        gcloud pubsub subscriptions create verify-sub --topic=verify-topic &&
+        (gcloud pubsub topics create verify-topic || true) &&
+        (gcloud pubsub subscriptions create verify-sub --topic=verify-topic || true) &&
         echo 'Pub/Sub Setup Completed successfully!'"
+
 
   # 4. Message Consumer (subscribes to events, processes via Gemini 3.5 Flash)
   consumer:
