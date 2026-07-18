@@ -71,6 +71,6 @@ services:
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - LLM_PROVIDER=gemini
-      - GEMINI_MODEL=gemini-2.5-flash
-      - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent
+      - GEMINI_MODEL=gemini-3.5-flash
+      - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-3.5-flash:generateContent
     restart: always
