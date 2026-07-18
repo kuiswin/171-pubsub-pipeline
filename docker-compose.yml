@@ -48,7 +48,7 @@ services:
     entrypoint: >
       bash -c "
         echo 'Waiting for Pub/Sub Emulator to start...' &&
-        while ! nc -z pubsub-emulator 8085; do sleep 0.5; done &&
+        while ! timeout 1 bash -c 'cat < /dev/tcp/pubsub-emulator/8085' 2>/dev/null; do sleep 0.5; done &&
         gcloud config set project local-project &&
         (gcloud pubsub topics create verify-topic || true) &&
         (gcloud pubsub subscriptions create verify-sub --topic=verify-topic || true) &&
