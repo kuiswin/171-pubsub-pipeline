@@ -595,6 +595,22 @@
             <div class="mode-badge" id="mode-badge">接続確認中...</div>
         </header>
 
+        <!-- 一時停止コントロールバー -->
+        <div class="pipeline-control-bar" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between; backdrop-filter: blur(12px); box-shadow: 0 10px 25px -5px rgba(148, 163, 184, 0.1); border-bottom: 4px solid var(--accent-purple);">
+            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">パイプラインの稼働状況</span>
+                    <div class="stat-value active" id="status-val" style="font-size: 1.35rem; margin-top: 0.25rem;">アクティブ</div>
+                </div>
+                <button id="toggle-consumer-btn" class="btn-primary" style="padding: 0.55rem 1.1rem; font-size: 0.82rem; margin: 0; background: var(--accent-purple); box-shadow: none;" onclick="toggleConsumer()">一時停止</button>
+            </div>
+            
+            <div style="font-size: 0.8rem; color: var(--text-muted); max-width: 60%; line-height: 1.45; border-left: 2px solid var(--border-color); padding-left: 1.2rem;">
+                💡 <strong>検証モード解説：</strong><br/>
+                開発環境（ローカルエミュレータ）では、本物のAPIを叩かず「モック翻訳」で動作します。左のボタンで<strong>一時停止</strong>させると、メッセージを翻訳せずキューにわざと滞留させて、非同期の復旧テスト（耐障害性検証）を行えます。本番環境（Cloud Run）では、Vertex AI API を通じて本物の Gemini 3.5 Flash による翻訳が実行されます。
+            </div>
+        </div>
+
         <!-- インタラクティブシミュレータ -->
         <div class="simulator-section">
             <!-- 上部: コントロール＆ステータスエリア -->
@@ -682,13 +698,6 @@
 
         <!-- パイプライン状況の基本スタッツ -->
         <div class="stats-grid">
-            <div class="stat-card status-active" style="display: flex; flex-direction: column; justify-content: space-between;">
-                <div class="stat-label">パイプラインの稼働状況</div>
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; width: 100%;">
-                    <div class="stat-value active" id="status-val" style="font-size: 1.25rem;">アクティブ</div>
-                    <button id="toggle-consumer-btn" class="btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.7rem; margin: 0; background: var(--accent-purple); box-shadow: none;" onclick="toggleConsumer()">一時停止</button>
-                </div>
-            </div>
             <div class="stat-card status-count">
                 <div class="stat-label">処理済みメッセージ数</div>
                 <div class="stat-value count" id="count-val">0 件</div>
