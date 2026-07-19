@@ -4,7 +4,7 @@ services:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     container_name: pubsub-emulator
     ports:
-      - "8085:8085"
+      - "127.0.0.1:8085:8085"
     entrypoint: [
       "gcloud", "beta", "emulators", "pubsub", "start", 
       "--host-port=0.0.0.0:8085"
@@ -22,7 +22,7 @@ services:
     image: dipjyotimetia/pubsub-emulator:latest
     container_name: pubsub-dashboard
     ports:
-      - "8080:8080" # Access via http://localhost:8080
+      - "127.0.0.1:8080:8080" # Access via http://localhost:8080
     environment:
       - PUBSUB_PROJECT=local-project
       - PUBSUB_PORT=8085
@@ -48,7 +48,7 @@ services:
     entrypoint: >
       bash -c "
         echo 'Waiting for Pub/Sub Emulator to start...' &&
-        while ! timeout 1 bash -c 'cat < /dev/tcp/pubsub-emulator/8085' 2>/dev/null; do sleep 0.5; done &&
+        while ! timeout 1 bash -c 'echo > /dev/tcp/pubsub-emulator/8085' 2>/dev/null; do sleep 0.5; done &&
         gcloud config set project local-project &&
         (gcloud pubsub topics create verify-topic || true) &&
         (gcloud pubsub subscriptions create verify-sub --topic=verify-topic || true) &&
@@ -63,7 +63,7 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     ports:
-      - "8086:8080"
+      - "127.0.0.1:8086:8080"
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - LLM_PROVIDER=gemini
