@@ -599,16 +599,16 @@
         </header>
 
         <!-- 一時停止コントロールバー -->
-        <div class="pipeline-control-bar" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between; backdrop-filter: blur(12px); box-shadow: 0 10px 25px -5px rgba(148, 163, 184, 0.1); border-bottom: 4px solid var(--accent-purple);">
-            <div style="display: flex; align-items: center; gap: 1.5rem;">
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">パイプラインの稼働状況</span>
-                    <div class="stat-value active" id="status-val" style="font-size: 1.35rem; margin-top: 0.25rem;">アクティブ</div>
+        <div class="pipeline-control-bar" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem 1.75rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between; gap: 2rem; backdrop-filter: blur(12px); box-shadow: 0 10px 25px -5px rgba(148, 163, 184, 0.1); border-bottom: 4px solid var(--accent-purple); flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 2rem; flex: 1; min-width: 320px;">
+                <div style="display: flex; flex-direction: column; min-width: 140px;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; white-space: nowrap;">パイプラインの稼働状況</span>
+                    <div class="stat-value active" id="status-val" style="font-size: 1.35rem; margin-top: 0.25rem; font-weight: 700; white-space: nowrap;">稼働中</div>
                 </div>
-                <button id="toggle-consumer-btn" class="btn-primary" style="padding: 0.55rem 1.1rem; font-size: 0.82rem; margin: 0; background: var(--accent-purple); box-shadow: none;" onclick="toggleConsumer()">一時停止</button>
+                <button id="toggle-consumer-btn" class="btn-primary" style="padding: 0.6rem 1.4rem; font-size: 0.85rem; margin: 0; background: var(--accent-purple); box-shadow: none; white-space: nowrap;" onclick="toggleConsumer()">一時停止</button>
             </div>
             
-            <div style="font-size: 0.8rem; color: var(--text-muted); max-width: 60%; line-height: 1.45; border-left: 2px solid var(--border-color); padding-left: 1.2rem;">
+            <div style="font-size: 0.8rem; color: var(--text-muted); flex: 2; min-width: 300px; max-width: 65%; line-height: 1.5; border-left: 2px solid var(--border-color); padding-left: 1.5rem;">
                 💡 <strong>検証モード解説：</strong><br/>
                 開発環境（ローカルエミュレータ）では、本物のAPIを叩かず「モック翻訳」で動作します。左のボタンで<strong>一時停止</strong>させると、メッセージを翻訳せずキューにわざと滞留させて、非同期の復旧テスト（耐障害性検証）を行えます。本番環境（Cloud Run）では、Vertex AI API を通じて本物の Gemini 3.5 Flash による翻訳が実行されます。
             </div>
@@ -616,33 +616,31 @@
 
         <!-- インタラクティブシミュレータ -->
         <div class="simulator-section">
-            <!-- 上部: コントロール＆ステータスエリア -->
-            <div class="sim-controls">
-                <!-- 操作1: 言葉生成 -->
-                <div>
-                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; font-family: 'Outfit', sans-serif; flex-wrap: wrap;">
-                        <span style="background: var(--accent-blue); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem; font-family:'Outfit'">Step 1</span>
-                        メッセージの送信 (プロデューサー)
-                        <span style="background: rgba(59, 130, 246, 0.08); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 4px; padding: 0.05rem 0.35rem; font-size: 0.65rem; font-weight: 700;">Publisher / 差出人 ✉️</span>
+            <!-- 上部: コントロール＆ステータスエリア (並列化された Step 0) -->
+            <div class="sim-controls" style="grid-template-columns: 1fr; border-bottom: 1px solid rgba(148, 163, 184, 0.1); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+                <div style="background: rgba(148, 163, 184, 0.03); border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px; padding: 1.25rem; width: 100%;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.5rem; font-family: 'Outfit', sans-serif;">
+                        <span style="background: var(--accent-blue); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.75rem; font-family:'Outfit'">Step 0</span>
+                        <span>トリガー：翻訳元のメッセージを生成する (Publisher / 差出人 📨)</span>
                     </h4>
-                    <div style="display: flex; gap: 0.75rem; align-items: center;">
-                        <button class="btn-primary" style="margin: 0; padding: 0.75rem 1.25rem; font-size: 0.85rem; flex: 1.2;" onclick="generateRandomText()">テンプレートからランダム生成</button>
-                        <div class="input-group" style="margin: 0; flex: 2;">
-                            <input type="text" id="custom-text" class="text-input" style="padding: 0.7rem 0.85rem;" placeholder="自分で言葉を入力して送信することも可能...">
-                            <button class="btn-send" onclick="publishCustomText()">送信</button>
+                    <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+                        <!-- 手段A: テンプレートから生成 -->
+                        <div style="flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 0.4rem;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">[A] テンプレートから選択して生成</span>
+                            <button class="btn-primary" style="margin: 0; padding: 0.75rem 1.25rem; font-size: 0.85rem; width: 100%;" onclick="generateRandomText()">ランダムな英文を生成する</button>
                         </div>
-                    </div>
-                </div>
-
-                <!-- システムステータス -->
-                <div>
-                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; font-family: 'Outfit', sans-serif;">
-                        <span style="background: var(--text-muted); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem; font-family:'Outfit'">System</span>
-                        システム接続ステータス
-                    </h4>
-                    <div class="queue-status-banner" style="background: rgba(148, 163, 184, 0.05); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 0.65rem 1rem; display: flex; align-items: center; justify-content: space-between; height: 46px; font-size: 0.82rem;">
-                        <span style="font-weight: 600; color: var(--text-main);"><span id="mode-badge-indicator" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-green); margin-right:0.4rem; animation:pulse 2s infinite;"></span>エミュレータ接続情報:</span>
-                        <span id="sub-val-status" style="font-family: monospace; font-size: 0.85rem; font-weight: 700; color: var(--text-main);">local-project (verify-sub)</span>
+                        
+                        <!-- 縦仕切り線 -->
+                        <div style="width: 1px; height: 50px; background: rgba(148, 163, 184, 0.15);" class="hidden-mobile"></div>
+                        
+                        <!-- 手段B: 手動入力 -->
+                        <div style="flex: 1.5; min-width: 320px; display: flex; flex-direction: column; gap: 0.4rem;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">[B] 自分で言葉を自由に入力して送信</span>
+                            <div class="input-group" style="margin: 0; width: 100%;">
+                                <input type="text" id="custom-text" class="text-input" style="padding: 0.7rem 0.85rem;" placeholder="送信したい言葉を入力してください...">
+                                <button class="btn-send" onclick="publishCustomText()">直接送信</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -654,7 +652,7 @@
                     <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
                         <span style="background: var(--accent-blue); color:white; border-radius:4px; padding: 0.1rem 0.4rem; font-size:0.7rem;">Step 1 (UI)</span>
                         <span>送信待ちバッファ (ブラウザ内待機)</span>
-                        <span style="background: rgba(59, 130, 246, 0.08); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.15); font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 4px; font-weight: 700;">Publisher (差出人)</span>
+                        <span style="background: rgba(59, 130, 246, 0.08); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.15); font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 4px; font-weight: 700;">Publisher (差出人) 📨</span>
                     </div>
                     <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.6rem; line-height: 1.3;">
                         ※ランダム生成されたテキストが送信待ちとして一時的にプールされます。
