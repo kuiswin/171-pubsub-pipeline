@@ -701,6 +701,12 @@
             </div>
         </div>
 
+        <!-- ローカル検証用の動作TIPS（3カラムの下に配置） -->
+        <div style="background: rgba(148, 163, 184, 0.05); border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px; padding: 1rem 1.25rem; margin-top: -1rem; margin-bottom: 2rem; font-size: 0.8rem; line-height: 1.5; color: var(--text-muted);">
+            💡 <strong>ローカル検証時の注意点（キューにカードが溜まらない理由）：</strong><br/>
+            開発環境では翻訳処理が<strong>モック（瞬時）</strong>で終わることと、ワーカーがキューを<strong>リアルタイム検知</strong>して即座に引き抜くため、通常時はメッセージが一瞬で通り過ぎてしまいます。Pub/Subの物理キューにメッセージが滞留する様子を視覚的に観察したい場合は、最上部の<strong>一時停止</strong>ボタンを押してからメッセージを送信してください。
+        </div>
+
         <!-- パイプライン状況の基本スタッツ -->
         <div class="stats-grid">
             <div class="stat-card status-count">
