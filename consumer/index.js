@@ -276,11 +276,11 @@ const messageHandler = async (message) => {
         : `[モック翻訳 (日本語)] ${payload.text}`;
       console.log(`[Consumer] (Local Mock Translation) Result: "${summary}"`);
     } else {
-      // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 3.5 Flash) API を呼び出す
+      // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 3.6 Flash) API を呼び出す
       console.log(`[Consumer] Connecting to Vertex AI in us-central1 (Translation Mode)...`);
       const { projectId, accessToken } = await getGCPToken();
       const region = process.env.GCP_REGION || 'us-central1';
-      const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+      const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
       const apiUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
       
       const prompt = "Detect the language of the input text. If it is English, translate it to natural Japanese. If it is Japanese, translate it to natural English. Output ONLY the translated text, no introductory or concluding remarks.";
@@ -392,11 +392,17 @@ async function stopConsumer() {
   }
 }
 
+// Cloud Run Push サブスクリプション受信用 Webhook エンドポイントエイリアス (/translate へ転送)
+app.post('/pubsub-push', (req, res, next) => {
+  req.url = '/translate';
+  app._router.handle(req, res, next);
+});
+
 // 初期起動時の開始（ローカルエミュレータ起動時のみ自動的にPullリスナーを開始する）
 if (isLocal) {
   startConsumer();
 } else {
-  console.log('[Consumer] Running in PRODUCTION mode (Push subscription endpoint active).');
+  console.log('[Consumer] Running in PRODUCTION mode (Push subscription endpoint /pubsub-push active).');
 }
 
 // Expressサーバーの起動
