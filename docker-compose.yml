@@ -31,8 +31,7 @@ services:
       - CLOUDSDK_API_ENDPOINT_OVERRIDES_PUBSUB=http://pubsub-emulator:8085/
     entrypoint: >
       bash -c "
-        echo 'Waiting for Pub/Sub Emulator to start...' &&
-        while ! timeout 1 bash -c 'echo > /dev/tcp/pubsub-emulator/8085' 2>/dev/null; do sleep 0.5; done &&
+        sleep 2 &&
         gcloud config set project local-project &&
         (gcloud pubsub topics create verify-topic || true) &&
         (gcloud pubsub subscriptions create verify-sub --topic=verify-topic || true) &&
@@ -44,6 +43,7 @@ services:
     container_name: pubsub_consumer_171
     ports:
       - "8080:8080"
+      - "8086:8080"
     environment:
       - PORT=8080
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
@@ -54,6 +54,6 @@ services:
       - GEMINI_MODEL=gemini-3.6-flash
       - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-3.6-flash:generateContent
     depends_on:
-      pubsub-init:
-        condition: service_completed_successfully
+      pubsub-emulator:
+        condition: service_healthy
     restart: always
