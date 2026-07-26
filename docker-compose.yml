@@ -17,23 +17,7 @@ services:
       retries: 3
       start_period: 5s
 
-  # 2. Web Dashboard for real-time visualization and testing
-  pubsub-dashboard:
-    image: dipjyotimetia/pubsub-emulator:latest
-    container_name: pubsub-dashboard
-    ports:
-      - "8080:8080" # Access via http://localhost:8080
-    environment:
-      - PUBSUB_PROJECT=local-project
-      - PUBSUB_PORT=8085
-      - DASHBOARD_PORT=8080
-      - PUBSUB_TOPIC=verify-topic
-      - PUBSUB_SUBSCRIPTION=verify-sub
-    depends_on:
-      pubsub-emulator:
-        condition: service_healthy
-
-  # 3. Initialization script to create topics and subscriptions
+  # 2. Initialization script to create topics and subscriptions
   pubsub-init:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     container_name: pubsub-init
@@ -54,18 +38,22 @@ services:
         (gcloud pubsub subscriptions create verify-sub --topic=verify-topic || true) &&
         echo 'Pub/Sub Setup Completed successfully!'"
 
-
-  # 4. Message Consumer (subscribes to events, processes via Gemini 3.6 Flash)
+  # 3. Message Consumer (subscribes to events, processes via Gemini 3.6 Flash)
   consumer:
     build: ./consumer
     container_name: pubsub_consumer_171
+    ports:
+      - "8080:8080"
     environment:
       - PORT=8080
-      - PUBSUB_EMULATOR_HOST=pubsub_emulator:8085
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT=local-project
-      - SUBSCRIPTION_ID=blog-comments-sub
-      - TOPIC_ID=blog-comments-topic
+      - SUBSCRIPTION_ID=verify-sub
+      - TOPIC_ID=verify-topic
       - LLM_PROVIDER=gemini
       - GEMINI_MODEL=gemini-3.6-flash
       - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-3.6-flash:generateContent
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
     restart: always
