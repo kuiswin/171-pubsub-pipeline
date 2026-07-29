@@ -127,8 +127,9 @@ app.post('/api/publish', async (req, res) => {
       timestamp: payload.timestamp
     });
 
+    const topicName = process.env.TOPIC_NAME || 'translate-topic';
     const dataBuffer = Buffer.from(JSON.stringify(payload));
-    const messageId = await pubsub.topic('verify-topic').publishMessage({ data: dataBuffer });
+    const messageId = await pubsub.topic(topicName).publishMessage({ data: dataBuffer });
     res.json({ success: true, messageId, id: payload.id });
   } catch (err) {
     console.error('[Consumer API] Failed to publish message:', err);
