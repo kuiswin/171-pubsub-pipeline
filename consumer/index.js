@@ -156,9 +156,14 @@ app.post('/translate', async (req, res) => {
     }
     const token = bearer.split(' ')[1];
     try {
+      const hostUrl = `https://${req.get('host')}`;
+      const expectedAudiences = process.env.OIDC_AUDIENCE 
+        ? [process.env.OIDC_AUDIENCE] 
+        : [hostUrl, `${hostUrl}/translate`];
+      
       const ticket = await authClient.verifyIdToken({
         idToken: token,
-        audience: process.env.OIDC_AUDIENCE || `https://${req.get('host')}/translate`,
+        audience: expectedAudiences,
       });
       const payload = ticket.getPayload();
       console.log(`[Consumer] OIDC Token verified successfully. Email: ${payload.email}`);
@@ -277,11 +282,14 @@ const messageHandler = async (message) => {
       console.log(`[Consumer] (Local Mock Translation) Result: "${summary}"`);
     } else {
       // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 3.6 Flash) API を呼び出す
-      console.log(`[Consumer] Connecting to Vertex AI in us-central1 (Translation Mode)...`);
+      console.log(`[Consumer] Connecting to Vertex AI (Gemini 3.6 Flash)...`);
       const { projectId, accessToken } = await getGCPToken();
-      const region = process.env.GCP_REGION || 'us-central1';
+      const region = process.env.GCP_REGION || 'global';
       const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-      const apiUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
+      const baseUrl = (region === 'global')
+        ? 'https://aiplatform.googleapis.com'
+        : `https://${region}-aiplatform.googleapis.com`;
+      const apiUrl = `${baseUrl}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
       
       const prompt = "Detect the language of the input text. If it is English, translate it to natural Japanese. If it is Japanese, translate it to natural English. Output ONLY the translated text, no introductory or concluding remarks.";
       const requestBody = {
@@ -306,7 +314,9 @@ const messageHandler = async (message) => {
       }
       
       const resData = await response.json();
-      summary = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'No translation returned';
+      const parts = resData.candidates?.[0]?.content?.parts || [];
+      const textPart = parts.find(p => p.text !== undefined);
+      summary = textPart ? textPart.text : 'No translation returned';
     }
     
     const endTime = Date.now();
