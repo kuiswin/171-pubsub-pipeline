@@ -156,6 +156,29 @@ app.get('/api/queue', (req, res) => {
   res.json(trackingMessages);
 });
 
+// ケチケチファイヤー（FinOps極限節約）統合要約API: 1リクエストでステータス・履歴・キューをまとめて一括返却
+app.get('/api/dashboard-summary', (req, res) => {
+  const now = Date.now();
+  trackingMessages = trackingMessages.filter(m => {
+    if (m.status === 'PUBLISHED') {
+      const age = (now - new Date(m.timestamp).getTime()) / 1000;
+      return age < 120;
+    }
+    return true;
+  });
+  res.json({
+    status: {
+      status: isConsumerRunning ? 'ACTIVE' : 'PAUSED',
+      mode: isLocal ? 'LOCAL (Simulation)' : 'PRODUCTION',
+      processedCount,
+      subscription: subscriptionName,
+      throttlingDelay
+    },
+    history: messageHistory,
+    queue: trackingMessages
+  });
+});
+
 // Cloud RunのPushサブスクリプション用エンドポイント
 app.post('/translate', async (req, res) => {
   if (!process.env.PUBSUB_EMULATOR_HOST) {
