@@ -142,8 +142,17 @@ app.get('/api/history', (req, res) => {
   res.json(messageHistory);
 });
 
-// API to get currently active un-acked messages in consumer memory
+// API to get currently active un-acked messages in consumer memory (自動パージ安全ガード付き)
 app.get('/api/queue', (req, res) => {
+  const now = Date.now();
+  // 120秒以上経過した未処理の孤立ゴーストメッセージ（初期設定エラー時の残留物）を自動クリア
+  trackingMessages = trackingMessages.filter(m => {
+    if (m.status === 'PUBLISHED') {
+      const age = (now - new Date(m.timestamp).getTime()) / 1000;
+      return age < 120;
+    }
+    return true;
+  });
   res.json(trackingMessages);
 });
 
