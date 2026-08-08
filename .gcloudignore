@@ -1,0 +1,14 @@
+# .gcloudignore
+.gcloudignore
+.dockerignore
+.git
+.gitignore
+*_backup*
+*backup*
+*.tar.gz
+*.zip
+*.log
+node_modules/
+tmp/
+.env*
+.DS_Store
