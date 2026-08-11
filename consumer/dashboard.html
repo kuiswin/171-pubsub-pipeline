@@ -610,7 +610,7 @@
             
             <div style="font-size: 0.8rem; color: var(--text-muted); flex: 2; min-width: 300px; max-width: 65%; line-height: 1.5; border-left: 2px solid var(--border-color); padding-left: 1.5rem;">
                 💡 <strong>検証モード解説：</strong><br/>
-                開発環境（ローカルエミュレータ）では、本物のAPIを叩かず「モック翻訳」で動作します。左のボタンで<strong>一時停止</strong>させると、メッセージを翻訳せずキューにわざと滞留させて、非同期の復旧テスト（耐障害性検証）を行えます。本番環境（Cloud Run）では、Vertex AI API を通じて本物の Gemini 3.6 Flash による翻訳が実行されます。
+                開発環境（ローカルエミュレータ）では、本物のAPIを叩かず「モック翻訳」で動作します。左のボタンで<strong>一時停止</strong>させると、メッセージを翻訳せずキューにわざと滞留させて、非同期の復旧テスト（耐障害性検証）を行えます。本番環境（Cloud Run）では、Vertex AI API を通じて本物の Gemini 3.5 Flash による翻訳が実行されます。
             </div>
         </div>
 
@@ -742,7 +742,7 @@
             "Cloud Run is a managed compute platform that enables you to run containers that are deployable on Google Cloud.",
             "Vertex AI is a machine learning platform that lets you train and deploy ML models and AI applications.",
             "Cloud Pub/Sub is an asynchronous messaging service that decouples services that produce events from services that process events.",
-            "Gemini 3.6 Flash is Google's lightweight, fast, and cost-efficient multimodal AI model designed for high-frequency tasks.",
+            "Gemini 3.5 Flash is Google's lightweight, fast, and cost-efficient multimodal AI model designed for high-frequency tasks.",
             "BigQuery is a completely serverless and cost-effective enterprise data warehouse that works across clouds.",
             "Google Cloud Spanner is a fully managed, mission-critical relational database service that provides transactional consistency at global scale.",
             "Cloud Storage is a global, secure, and scalable object store for unstructured data such as images, videos, and backups.",
@@ -841,7 +841,75 @@
             if (statusBadge) {
                 statusBadge.style.color = 'var(--accent-pink)';
                 statusBadge.style.background = 'rgba(236,72,153,0.1)';
-                        // 共通：テキストの送信処理
+                statusBadge.innerHTML = `⏱️ <span class="countdown-sec">1</span>秒後に自動送信`;
+            }
+            
+            const progressBar = cardEl.querySelector('.progress-bar-inner');
+            if (progressBar) {
+                progressBar.style.background = 'linear-gradient(90deg, var(--accent-blue), var(--accent-pink))';
+            }
+            
+            const countdownSecSpan = cardEl.querySelector('.countdown-sec');
+            
+            activeCard.intervalId = setInterval(() => {
+                activeCard.secondsRemaining--;
+                if (activeCard.secondsRemaining > 0) {
+                    if (countdownSecSpan) countdownSecSpan.textContent = activeCard.secondsRemaining;
+                    if (progressBar) progressBar.style.width = `${(activeCard.secondsRemaining / 1) * 100}%`;
+                } else {
+                    clearInterval(activeCard.intervalId);
+                }
+            }, 1000);
+            
+            activeCard.timeoutId = setTimeout(async () => {
+                await sendCardToQueue(activeCard.id, activeCard.text);
+            }, 1000);
+        }
+
+        // カスタムテキストを送信する
+        async function publishCustomText() {
+            const input = document.getElementById('custom-text');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            input.value = "";
+            const customId = nextEventId++;
+            await publishText(text, customId);
+        }
+
+        // カードをキューに送る
+        async function sendCardToQueue(id, text) {
+            // タイマー解除とpendingCardsからの削除
+            const cardIndex = pendingCards.findIndex(c => c.id === id);
+            if (cardIndex !== -1) {
+                const pCard = pendingCards[cardIndex];
+                if (pCard.intervalId) clearInterval(pCard.intervalId);
+                if (pCard.timeoutId) clearTimeout(pCard.timeoutId);
+                pendingCards.splice(cardIndex, 1);
+            }
+            
+            if (activeCountdownId === id) {
+                activeCountdownId = null;
+            }
+            
+            const card = document.getElementById(`card-${id}`);
+            if (card) {
+                card.remove();
+            }
+            
+            const container = document.getElementById('word-box-container');
+            if (container.children.length === 0) {
+                container.classList.add('empty');
+                container.innerHTML = `<div class="empty-queue">ここに生成されたカードが表示されます。<br/>クリックするとキューへ送信されます。</div>`;
+            }
+            
+            await publishText(text, id);
+            
+            // 次の待機カードの処理を開始
+            processPendingQueue();
+        }
+
+        // 共通：テキストの送信処理
         async function publishText(text, id) {
             try {
                 const res = await fetch('/api/publish', {
@@ -853,8 +921,6 @@
                 
                 if (!data.success) {
                     alert("送信に失敗しました: " + data.error);
-                } else {
-                    updateDashboard(); // 送信直後に即時手動更新！
                 }
             } catch (err) {
                 console.error("API送信エラー:", err);
@@ -879,7 +945,7 @@
 
             backlogCountEl.textContent = backlogList.length + ' 件';
 
-            // 1. 物理キュー（滞留中）の描画
+            // 1. 物理キュー滞留中の描画
             if (backlogList.length === 0) {
                 backlogLane.innerHTML = `<div class="empty-queue">現在キューに滞留しているメッセージはありません。</div>`;
             } else {
@@ -920,17 +986,12 @@
 
         let hasInitializedSlider = false;
 
-        // ポーリング処理（ケチケチファイヤー統合API一括取得）
+        // ポーリング処理
         async function updateDashboard() {
             try {
-                // 統合要約APIから1回の通信でまとめて取得
-                const summaryRes = await fetch('/api/dashboard-summary');
-                const summaryData = await summaryRes.json();
-                const statusData = summaryData.status;
-                const historyData = summaryData.history;
-                const queueData = summaryData.queue;
-
                 // ステータスの更新
+                const statusRes = await fetch('/api/status');
+                const statusData = await statusRes.json();
                 document.getElementById('mode-badge').textContent = statusData.mode === 'LOCAL (Simulation)' ? 'ローカル検証モード (ローカルAI)' : '本番運用モード (Google Cloud)';
                 document.getElementById('count-val').textContent = statusData.processedCount + ' 件';
                 document.getElementById('sub-val').textContent = statusData.subscription;
@@ -963,57 +1024,14 @@
                     }
                     hasInitializedSlider = true;
                 }
+                
+                // 履歴の更新
+                const historyRes = await fetch('/api/history');
+                const historyData = await historyRes.json();
 
                 // 処理中キュー（未ack）の更新
-                renderQueueLane(queueData);
-            } catch (err) {
-                console.error('データ取得エラー:', err);
-            }
-        }
-
-        // ポーリング処理（ケチケチファイヤー統合API一括取得）
-        async function updateDashboard() {
-            try {
-                const summaryRes = await fetch('/api/dashboard-summary');
-                const summaryData = await summaryRes.json();
-                const statusData = summaryData.status;
-                const historyData = summaryData.history;
-                const queueData = summaryData.queue;
-
-                document.getElementById('mode-badge').textContent = statusData.mode === 'LOCAL (Simulation)' ? 'ローカル検証モード (ローカルAI)' : '本番運用モード (Google Cloud)';
-                document.getElementById('count-val').textContent = statusData.processedCount + ' 件';
-                document.getElementById('sub-val').textContent = statusData.subscription;
-                
-                // コンシューマー状態の表示とトグルボタンの同期
-                const statusVal = document.getElementById('status-val');
-                const toggleBtn = document.getElementById('toggle-consumer-btn');
-                if (statusData.status === 'ACTIVE') {
-                    statusVal.textContent = '稼働中';
-                    statusVal.className = 'stat-value active';
-                    if (toggleBtn) {
-                        toggleBtn.textContent = '一時停止';
-                        toggleBtn.style.background = 'var(--accent-purple)';
-                    }
-                } else {
-                    statusVal.textContent = '停止中';
-                    statusVal.className = 'stat-value count';
-                    if (toggleBtn) {
-                        toggleBtn.textContent = '再開';
-                        toggleBtn.style.background = 'var(--accent-pink)';
-                    }
-                }
-                
-                // スライダー初期設定
-                if (!hasInitializedSlider && statusData.throttlingDelay !== undefined) {
-                    const slider = document.getElementById('delay-slider');
-                    if (slider) {
-                        slider.value = statusData.throttlingDelay;
-                        updateDelayValue(statusData.throttlingDelay);
-                    }
-                    hasInitializedSlider = true;
-                }
-
-                // 処理中キュー（未ack）の更新
+                const queueRes = await fetch('/api/queue');
+                const queueData = await queueRes.json();
                 renderQueueLane(queueData);
                 
                 // システム内の最大IDを検出して nextEventId を同期（重複防止）
@@ -1155,33 +1173,9 @@
             }
         }
         
-        // 初回ロードとケチケチファイヤー（FinOps）極限節約ポーリング制御
-        let pollIntervalTimer = null;
-
-        function startPolling() {
-            if (!pollIntervalTimer) {
-                updateDashboard();
-                pollIntervalTimer = setInterval(updateDashboard, 4000);
-            }
-        }
-
-        function stopPolling() {
-            if (pollIntervalTimer) {
-                clearInterval(pollIntervalTimer);
-                pollIntervalTimer = null;
-            }
-        }
-
-        // タブ非アクティブ時は通信を100%停止（放置時の破産防止・FinOps最優先）
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                stopPolling();
-            } else {
-                startPolling();
-            }
-        });
-
-        startPolling();
+        // 初回ロードと2秒ごとのポーリング
+        updateDashboard();
+        setInterval(updateDashboard, 2000);
     </script>
 </body>
 </html>
