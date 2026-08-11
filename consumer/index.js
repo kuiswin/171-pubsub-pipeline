@@ -127,7 +127,7 @@ app.post('/api/publish', async (req, res) => {
       timestamp: payload.timestamp
     });
 
-    const topicName = process.env.TOPIC_NAME || 'translate-topic';
+    const topicName = process.env.TOPIC_NAME || process.env.TOPIC_ID || 'verify-topic';
     const dataBuffer = Buffer.from(JSON.stringify(payload));
     const messageId = await pubsub.topic(topicName).publishMessage({ data: dataBuffer });
     res.json({ success: true, messageId, id: payload.id });
