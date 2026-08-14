@@ -314,11 +314,11 @@ const messageHandler = async (message) => {
         : `[モック翻訳 (日本語)] ${payload.text}`;
       console.log(`[Consumer] (Local Mock Translation) Result: "${summary}"`);
     } else {
-      // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 3.6 Flash) API を呼び出す
-      console.log(`[Consumer] Connecting to Vertex AI (Gemini 3.6 Flash)...`);
+      // 本番環境（GCP）動作時は本物の Vertex AI (Gemini 3.7 Flash) API を呼び出す
+      console.log(`[Consumer] Connecting to Vertex AI (Gemini 3.7 Flash)...`);
       const { projectId, accessToken } = await getGCPToken();
       const region = process.env.GCP_REGION || 'global';
-      const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+      const model = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
       const baseUrl = (region === 'global')
         ? 'https://aiplatform.googleapis.com'
         : `https://${region}-aiplatform.googleapis.com`;

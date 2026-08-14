@@ -37,7 +37,7 @@ services:
         (gcloud pubsub subscriptions create verify-sub --topic=verify-topic || true) &&
         echo 'Pub/Sub Setup Completed successfully!'"
 
-  # 3. Message Consumer (subscribes to events, processes via Gemini 3.6 Flash)
+  # 3. Message Consumer (subscribes to events, processes via Gemini 3.7 Flash)
   consumer:
     build: ./consumer
     container_name: pubsub_consumer_171
@@ -51,8 +51,8 @@ services:
       - SUBSCRIPTION_ID=verify-sub
       - TOPIC_ID=verify-topic
       - LLM_PROVIDER=gemini
-      - GEMINI_MODEL=gemini-3.6-flash
-      - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-3.6-flash:generateContent
+      - GEMINI_MODEL=gemini-3.7-flash
+      - VERTEX_API_URL=https://us-central1-aiplatform.googleapis.com/v1/projects/local-project/locations/us-central1/publishers/google/models/gemini-3.7-flash:generateContent
     depends_on:
       pubsub-emulator:
         condition: service_healthy
